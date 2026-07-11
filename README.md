@@ -24,7 +24,7 @@ A when2meet alternative — create events, share a link, and let participants dr
 |-------|--------|
 | Framework | Next.js (App Router) |
 | Language | TypeScript |
-| Database | PostgreSQL via Neon |
+| Database | PostgreSQL (Docker in development, Neon in non-development) |
 | ORM | Drizzle |
 | Forms | TanStack Form + Zod |
 | UI | Tailwind CSS, shadcn/ui |
@@ -38,24 +38,32 @@ A when2meet alternative — create events, share a link, and let participants dr
 
 ## Local Development
 
-**Prerequisites:** Node.js, pnpm, a Neon PostgreSQL database.
+**Prerequisites:** Node.js, pnpm, and Docker installed and running.
 
 ```bash
 # 1. Install dependencies
 pnpm install
 
-# 2. Set up environment variables
+# 2. Start local Postgres
+docker compose up -d
+
+# 3. Set up environment variables
 cp .env.example .env.local
-# Edit .env.local and add your DATABASE_URL (Neon connection string)
 
-# 3. migrate the database schema
-npx drizzle-kit migrate
+# 4. Migrate the database schema
+pnpm db:push
 
-# 4. Start the dev server
+# 5. Start the dev server
 pnpm dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) to see the app.
+
+Stop local Postgres when done:
+
+```bash
+docker compose down
+```
 
 ### Scripts
 
