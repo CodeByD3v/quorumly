@@ -2,6 +2,10 @@
 
 A when2meet alternative — create events, share a link, and let participants drag to select their available time slots. Find the best meeting time for everyone. Better UI, no ads, fully free and open source.
 
+
+Join our community at: https://discord.gg/Ez6QAGGT2W (for any queries regarding contributing)
+
+
 <div align="center">
   <a href="https://quorumly.vercel.app/">
     <img src="https://img.shields.io/badge/Try%20Now-quorumly.vercel.app-black?style=for-the-badge&logo=vercel" alt="Try Now" />
