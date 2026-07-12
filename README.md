@@ -22,6 +22,11 @@ Join our community at: https://discord.gg/Ez6QAGGT2W (for any queries regarding 
 3. Once created, you can share the link with others, and also add your availability
 4. Once everyone has added their availability, the interactive grid map allows you to see who all are available at a time, and you can schedule a meeting accordingly
 
+## Contributing 
+Please check the contributing guidelines at [CONTRIBUTING.md](./CONTRIBUTING.md). Please note we are looking for PRs from people who want to take it as an opportunity to learn while contributing. We expect you to minimize the use of AI, and use it solely for assistance. We may usually not add a strict restriction, but if the code seems like its obviously AI, we will be closing the Pull Request.
+
+Before making any changes, please create an issue for it, and we will assign the issue to you, and then you can proceed to create a PR linked to the issue. Please note that if the issue is assigned to you, we expect you to compete it within a reasonable time, or we might have to reassign it, or merge any other PRs which close the same issue.
+
 ## Tech Stack
 
 | Layer | Choice |
@@ -77,8 +82,8 @@ docker compose down
 | `pnpm build` | Build for production |
 | `pnpm start` | Start the production server |
 | `pnpm lint` | Run ESLint |
-| `npx drizzle-kit migrate` | Migrate the database |
-| `npx drizzle-kit generate` | Generate a new migration |
+| `pnpm db:migrate` | Migrate the database |
+| `pnpm db:generate` | Generate a new migration |
 
 ## Project Structure
 
