@@ -14,7 +14,7 @@ type AppSchema = typeof schema;
 type AppDatabase = PgDatabase<PgQueryResultHKT, AppSchema>;
 
 const db: AppDatabase = isDevelopment
-	? (drizzleNode({ client: new Pool({ connectionString: databaseUrl }) }) as unknown as AppDatabase)
-	: (drizzleNeon({ client: neon(databaseUrl) }) as unknown as AppDatabase);
+	? (drizzleNode({ client: new Pool({ connectionString: databaseUrl }), schema }) as unknown as AppDatabase)
+	: (drizzleNeon({ client: neon(databaseUrl), schema }) as unknown as AppDatabase);
 
 export default db;

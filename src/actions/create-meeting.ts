@@ -38,24 +38,28 @@ export async function createMeeting(
   try {
     const slug = generateSlug()
 
-    const [meeting] = await db
-      .insert(meetings)
-      .values({
-        slug,
-        eventName,
-        description: description.trim() || null,
-        timezone,
-        showFromHour: parseHour(fromTime, 0),
-        showToHour: parseHour(toTime, 23),
-      })
-      .returning({ id: meetings.id, slug: meetings.slug })
+    const [meeting] = await db.transaction(async (tx) => {
+      const [newMeeting] = await tx
+        .insert(meetings)
+        .values({
+          slug,
+          eventName,
+          description: description.trim() || null,
+          timezone,
+          showFromHour: parseHour(fromTime, 0),
+          showToHour: parseHour(toTime, 23),
+        })
+        .returning({ id: meetings.id, slug: meetings.slug })
 
-    await db.insert(meetingDates).values(
-      availableDates.map((date) => ({
-        meetingId: meeting.id,
-        date,
-      }))
-    )
+      await tx.insert(meetingDates).values(
+        availableDates.map((date) => ({
+          meetingId: newMeeting.id,
+          date,
+        }))
+      )
+      
+      return [newMeeting]
+    })
 
     return { success: true, slug: meeting.slug }
   } catch (error) {
@@ -68,20 +72,17 @@ export async function createMeeting(
 }
 
 export async function getMeetingBySlug(slug: string) {
-  const [meeting] = await db
-    .select()
-    .from(meetings)
-    .where(eq(meetings.slug, slug))
-    .limit(1)
+  const meetingWithDates = await db.query.meetings.findFirst({
+    where: eq(meetings.slug, slug),
+    with: {
+      dates: true,
+    },
+  })
 
-  if (!meeting) {
+  if (!meetingWithDates) {
     return null
   }
 
-  const dates = await db
-    .select()
-    .from(meetingDates)
-    .where(eq(meetingDates.meetingId, meeting.id))
-
+  const { dates, ...meeting } = meetingWithDates
   return { meeting, dates }
 }
