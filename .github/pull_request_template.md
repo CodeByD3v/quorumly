@@ -15,8 +15,13 @@ Explain what you changed, why you changed it, and what user impact it has.
 ## How You Tested It
 - 
 
-## Screenshots / Preview (Required for Web App UI Changes)
+## Screenshots / Preview
 If this PR changes the web app UI/UX, add before/after screenshots or a preview image.
+If there are any backend changes, there should be relevant screenshots to show that you have tested a feature.
+
+NOT ADDING A IMAGE WILL STRAIGHT AWAY LEAD TO YOUR PR BEING CLOSED WITHOUT ANY REVIEW, AND THE ISSUE WILL BE REASSIGNED
+
+
 
 ## Checklist
 - [ ] I wrote this PR description myself in natural language.
