@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useState } from "react"
 
-import { saveResponse } from "@/actions/responses"
+import { saveInviteeResponse, saveResponse } from "@/actions/responses"
 import {
   AvailabilityGrid,
   type SelectedSlots,
@@ -32,18 +32,25 @@ type ResponseRow = {
   timeSlots: string[]
 }
 
+type InviteInfo = {
+  token: string
+  email: string
+}
+
 type MeetingContentProps = {
   meeting: Meeting
   dates: MeetingDate[]
   initialResponses: ResponseRow[]
+  invite?: InviteInfo | null
 }
 
 export function MeetingContent({
   meeting,
   dates,
   initialResponses,
+  invite,
 }: MeetingContentProps) {
-  const [isAdding, setIsAdding] = useState(false)
+  const [isAdding, setIsAdding] = useState(Boolean(invite))
   const [selectedSlots, setSelectedSlots] = useState<SelectedSlots>(new Set())
   const [name, setName] = useState("")
   const [responses, setResponses] = useState<ResponseRow[]>(initialResponses)
@@ -81,11 +88,18 @@ export function MeetingContent({
     setSaveMsg(null)
 
     try {
-      const result = await saveResponse(
-        meeting.id,
-        name.trim(),
-        Array.from(selectedSlots)
-      )
+      const result = invite
+        ? await saveInviteeResponse(
+            meeting.id,
+            invite.token,
+            name.trim(),
+            Array.from(selectedSlots)
+          )
+        : await saveResponse(
+            meeting.id,
+            name.trim(),
+            Array.from(selectedSlots)
+          )
 
       if (result.success) {
         setSaveMsg("success")
@@ -162,6 +176,13 @@ export function MeetingContent({
             )}
           </div>
         </div>
+
+        {invite && (
+          <p className="text-xs text-slate-400 mb-4">
+            You&apos;re responding to an invite sent to{" "}
+            <span className="font-medium text-slate-600">{invite.email}</span>.
+          </p>
+        )}
 
         {saveMsg && (
           <p
