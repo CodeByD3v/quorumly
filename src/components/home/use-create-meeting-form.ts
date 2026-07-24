@@ -21,6 +21,7 @@ export function useCreateMeetingForm() {
       toTime: "17",
       timezone: getDefaultTimezone(),
       availableDates: [] as Date[],
+      inviteEmails: [] as string[],
     },
     validators: {
       onSubmit: createMeetingFormSchema,

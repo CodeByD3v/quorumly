@@ -1,8 +1,10 @@
 "use client"
 
 import dynamic from "next/dynamic"
+import { useState } from "react"
 
 import { timeOptions } from "@/lib/constants/time"
+import { MAX_INVITE_EMAILS } from "@/lib/schemas/create-meeting"
 import { TimezoneSelect } from "@/components/timezone-select"
 import {
   Field,
@@ -190,6 +192,112 @@ export function AvailableDatesField({ form }: { form: CreateMeetingForm }) {
                 className="mx-auto w-3/4 md:w-full"
               />
             </div>
+            {isInvalid && <FieldError errors={field.state.meta.errors} />}
+          </Field>
+        )
+      }}
+    </form.Field>
+  )
+}
+
+export function InviteEmailsField({ form }: { form: CreateMeetingForm }) {
+  const [draft, setDraft] = useState("")
+  const [localError, setLocalError] = useState<string | null>(null)
+
+  return (
+    <form.Field name="inviteEmails">
+      {(field) => {
+        const emails = field.state.value
+        const isInvalid =
+          field.state.meta.isTouched && !field.state.meta.isValid
+
+        const addEmail = () => {
+          const value = draft.trim().toLowerCase()
+          if (!value) return
+
+          const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+          if (!emailPattern.test(value)) {
+            setLocalError("Enter a valid email.")
+            return
+          }
+          if (emails.includes(value)) {
+            setLocalError("That email is already added.")
+            return
+          }
+          if (emails.length >= MAX_INVITE_EMAILS) {
+            setLocalError(`You can invite up to ${MAX_INVITE_EMAILS} people.`)
+            return
+          }
+
+          field.handleChange([...emails, value])
+          setDraft("")
+          setLocalError(null)
+        }
+
+        const removeEmail = (email: string) => {
+          field.handleChange(emails.filter((e) => e !== email))
+        }
+
+        return (
+          <Field data-invalid={isInvalid}>
+            <FieldLabel htmlFor="invite-emails">
+              Invite people (optional)
+            </FieldLabel>
+            <FieldDescription className="text-xs text-slate-400">
+              Add up to {MAX_INVITE_EMAILS} email addresses. Each person gets
+              a personal link to add their availability once the event is
+              created.
+            </FieldDescription>
+
+            {emails.length > 0 && (
+              <ul className="flex flex-wrap gap-2 mt-1">
+                {emails.map((email) => (
+                  <li
+                    key={email}
+                    className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs text-slate-700"
+                  >
+                    {email}
+                    <button
+                      type="button"
+                      onClick={() => removeEmail(email)}
+                      aria-label={`Remove ${email}`}
+                      className="text-slate-400 hover:text-slate-600"
+                    >
+                      ×
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <div className="flex gap-2 mt-1">
+              <Input
+                id="invite-emails"
+                type="email"
+                placeholder="name@example.com"
+                value={draft}
+                onChange={(event) => {
+                  setDraft(event.target.value)
+                  setLocalError(null)
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === ",") {
+                    event.preventDefault()
+                    addEmail()
+                  }
+                }}
+                onBlur={() => {
+                  field.handleBlur()
+                  if (draft.trim()) addEmail()
+                }}
+                disabled={emails.length >= MAX_INVITE_EMAILS}
+                autoComplete="off"
+              />
+            </div>
+
+            {localError && (
+              <p className="text-xs text-destructive">{localError}</p>
+            )}
             {isInvalid && <FieldError errors={field.state.meta.errors} />}
           </Field>
         )
