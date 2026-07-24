@@ -3,11 +3,28 @@
 import { eq } from "drizzle-orm"
 
 import db from "@/db"
-import { meetingDates, meetings } from "@/db/schema"
+import { invitees, meetingDates, meetings } from "@/db/schema"
 import { createMeetingInputSchema } from "@/lib/schemas/create-meeting"
+import { sendInviteEmail } from "@/lib/email"
 
 function generateSlug() {
   return crypto.randomUUID()
+}
+
+function generateInviteToken() {
+  // 32 bytes of randomness, base64url-encoded — used as the identification
+  // parameter in the emailed invite link (see issue #3).
+  return Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString(
+    "base64url"
+  )
+}
+
+function getAppUrl() {
+  return (
+    process.env.NEXT_PUBLIC_APP_URL ??
+    process.env.BETTER_AUTH_URL ??
+    "http://localhost:3000"
+  )
 }
 
 function parseHour(value: string, fallback: number) {
@@ -32,8 +49,15 @@ export async function createMeeting(
     return { success: false, error: "Invalid form data." }
   }
 
-  const { eventName, description, fromTime, toTime, timezone, availableDates } =
-    parsed.data
+  const {
+    eventName,
+    description,
+    fromTime,
+    toTime,
+    timezone,
+    availableDates,
+    inviteEmails,
+  } = parsed.data
 
   try {
     const slug = generateSlug()
@@ -56,6 +80,35 @@ export async function createMeeting(
         date,
       }))
     )
+
+    if (inviteEmails.length > 0) {
+      const createdInvitees = await db
+        .insert(invitees)
+        .values(
+          inviteEmails.map((email) => ({
+            meetingId: meeting.id,
+            email,
+            token: generateInviteToken(),
+          }))
+        )
+        .onConflictDoNothing()
+        .returning({ email: invitees.email, token: invitees.token })
+
+      const appUrl = getAppUrl()
+
+      // Send invite emails best-effort — a failed email should not roll
+      // back the meeting that was just created.
+      await Promise.allSettled(
+        createdInvitees.map((invitee) =>
+          sendInviteEmail({
+            to: invitee.email,
+            eventName,
+            inviteUrl: `${appUrl}/m/${meeting.slug}?token=${invitee.token}`,
+            hostNote: description.trim() || null,
+          })
+        )
+      )
+    }
 
     return { success: true, slug: meeting.slug }
   } catch (error) {

@@ -1,13 +1,53 @@
 "use server"
 
-import { eq } from "drizzle-orm"
+import { and, eq } from "drizzle-orm"
 
 import db from "@/db"
-import { meetingDates, meetings, responses } from "@/db/schema"
+import { invitees, meetingDates, meetings, responses, user } from "@/db/schema"
 
 export type SaveResponseResult =
   | { success: true }
   | { success: false; error: string }
+
+function isValidTimeSlotsInput(timeSlots: unknown): timeSlots is string[] {
+  return (
+    Array.isArray(timeSlots) &&
+    timeSlots.length > 0 &&
+    timeSlots.every((s) => typeof s === "string" && s.length > 0)
+  )
+}
+
+async function getValidTimeSlots(meetingId: string, timeSlots: string[]) {
+  const [meeting] = await db
+    .select({
+      showFromHour: meetings.showFromHour,
+      showToHour: meetings.showToHour,
+    })
+    .from(meetings)
+    .where(eq(meetings.id, meetingId))
+    .limit(1)
+
+  if (!meeting) {
+    return null
+  }
+
+  const dates = await db
+    .select({ date: meetingDates.date })
+    .from(meetingDates)
+    .where(eq(meetingDates.meetingId, meetingId))
+
+  const validKeys = new Set<string>()
+  for (const d of dates) {
+    for (let h = meeting.showFromHour; h <= meeting.showToHour; h++) {
+      validKeys.add(`${d.date}T${String(h).padStart(2, "0")}:00`)
+      if (h < meeting.showToHour) {
+        validKeys.add(`${d.date}T${String(h).padStart(2, "0")}:30`)
+      }
+    }
+  }
+
+  return timeSlots.filter((s) => validKeys.has(s))
+}
 
 export async function saveResponse(
   meetingId: string,
@@ -20,41 +60,16 @@ export async function saveResponse(
     return { success: false, error: "Name is required." }
   }
 
-  if (
-    !Array.isArray(timeSlots) ||
-    timeSlots.length === 0 ||
-    !timeSlots.every((s) => typeof s === "string" && s.length > 0)
-  ) {
+  if (!isValidTimeSlotsInput(timeSlots)) {
     return { success: false, error: "At least one valid time slot is required." }
   }
 
   try {
-    const [meeting] = await db
-      .select({ showFromHour: meetings.showFromHour, showToHour: meetings.showToHour })
-      .from(meetings)
-      .where(eq(meetings.id, meetingId))
-      .limit(1)
+    const valid = await getValidTimeSlots(meetingId, timeSlots)
 
-    if (!meeting) {
+    if (valid === null) {
       return { success: false, error: "Meeting not found." }
     }
-
-    const dates = await db
-      .select({ date: meetingDates.date })
-      .from(meetingDates)
-      .where(eq(meetingDates.meetingId, meetingId))
-
-    const validKeys = new Set<string>()
-    for (const d of dates) {
-      for (let h = meeting.showFromHour; h <= meeting.showToHour; h++) {
-        validKeys.add(`${d.date}T${String(h).padStart(2, "0")}:00`)
-        if (h < meeting.showToHour) {
-          validKeys.add(`${d.date}T${String(h).padStart(2, "0")}:30`)
-        }
-      }
-    }
-
-    const valid = timeSlots.filter((s) => validKeys.has(s))
     if (valid.length === 0) {
       return { success: false, error: "No valid time slots provided." }
     }
@@ -74,6 +89,102 @@ export async function saveResponse(
     return { success: true }
   } catch (error) {
     console.error("Failed to save response:", error)
+    return { success: false, error: "Failed to save. Please try again." }
+  }
+}
+
+/**
+ * Saves a response that came from a personal, emailed invite link
+ * (`/m/[slug]?token=...`). Unlike `saveResponse`, this:
+ *  - re-verifies the token server-side (never trusts the client's claimed
+ *    email)
+ *  - finds-or-creates a `user` row for the invitee's email so an "account"
+ *    exists for them going forward (issue #3) — no session/sign-in is
+ *    created, this is purely a backend record
+ *  - links the response to that user via the hidden `userId` column, while
+ *    still storing the display `name` the same way anonymous responses do
+ *  - marks the invitee row as responded
+ */
+export async function saveInviteeResponse(
+  meetingId: string,
+  token: string,
+  name: string,
+  timeSlots: string[]
+): Promise<SaveResponseResult> {
+  const trimmed = name.trim()
+
+  if (!trimmed) {
+    return { success: false, error: "Name is required." }
+  }
+  if (!token) {
+    return { success: false, error: "Invalid or expired invite link." }
+  }
+  if (!isValidTimeSlotsInput(timeSlots)) {
+    return { success: false, error: "At least one valid time slot is required." }
+  }
+
+  try {
+    const [invitee] = await db
+      .select({ id: invitees.id, email: invitees.email })
+      .from(invitees)
+      .where(and(eq(invitees.meetingId, meetingId), eq(invitees.token, token)))
+      .limit(1)
+
+    if (!invitee) {
+      return { success: false, error: "Invalid or expired invite link." }
+    }
+
+    const valid = await getValidTimeSlots(meetingId, timeSlots)
+    if (valid === null) {
+      return { success: false, error: "Meeting not found." }
+    }
+    if (valid.length === 0) {
+      return { success: false, error: "No valid time slots provided." }
+    }
+
+    await db.transaction(async (tx) => {
+      const [existingUser] = await tx
+        .select({ id: user.id })
+        .from(user)
+        .where(eq(user.email, invitee.email))
+        .limit(1)
+
+      const userId =
+        existingUser?.id ??
+        (
+          await tx
+            .insert(user)
+            .values({
+              id: crypto.randomUUID(),
+              name: trimmed,
+              email: invitee.email,
+              emailVerified: false,
+            })
+            .returning({ id: user.id })
+        )[0].id
+
+      await tx
+        .insert(responses)
+        .values({
+          meetingId,
+          name: trimmed,
+          timeSlots: valid,
+          userId,
+        })
+        .onConflictDoUpdate({
+          target: [responses.meetingId, responses.name],
+          set: { timeSlots: valid, userId },
+        })
+
+      await tx
+        .update(invitees)
+        .set({ status: "responded", respondedAt: new Date() })
+        .where(eq(invitees.id, invitee.id))
+    })
+
+    return { success: true }
+  } catch (error) {
+    console.error("Failed to save invitee response:", error)
     return { success: false, error: "Failed to save. Please try again." }
   }
 }

@@ -1,5 +1,17 @@
 import * as z from "zod"
 
+export const MAX_INVITE_EMAILS = 10
+
+const inviteEmailsSchema = z
+  .array(z.string().trim().toLowerCase().email("Enter a valid email."))
+  .max(
+    MAX_INVITE_EMAILS,
+    `You can invite up to ${MAX_INVITE_EMAILS} people.`
+  )
+  .refine((emails) => new Set(emails).size === emails.length, {
+    message: "Duplicate email address.",
+  })
+
 export const createMeetingFormSchema = z.object({
   eventName: z.string().trim().min(1, "Event name is required."),
   description: z.string(),
@@ -9,6 +21,7 @@ export const createMeetingFormSchema = z.object({
   availableDates: z
     .array(z.date())
     .min(1, "Select at least one available date."),
+  inviteEmails: inviteEmailsSchema,
 })
 
 export const createMeetingInputSchema = createMeetingFormSchema.extend({
