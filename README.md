@@ -19,8 +19,10 @@ Join our community at: https://discord.gg/Ez6QAGGT2W (for any queries regarding 
 ## Quick Start
 1. Open https://quorumly.vercel.app/
 2. Enter the relevent meeting details
-3. Once created, you can share the link with others, and also add your availability
-4. Once everyone has added their availability, the interactive grid map allows you to see who all are available at a time, and you can schedule a meeting accordingly
+3. (Optional) Add up to 10 email addresses to invite people - they'll receive a personalized link
+4. Once created, you can share the link with others, and also add your availability
+5. Invitees receive an email with a unique link to add their availability
+6. Once everyone has added their availability, the interactive grid map allows you to see who all are available at a time, and you can schedule a meeting accordingly
 
 ## Contributing 
 Please check the contributing guidelines at [CONTRIBUTING.md](./CONTRIBUTING.md). Please note we are looking for PRs from people who want to take it as an opportunity to learn while contributing. We expect you to minimize the use of AI, and use it solely for assistance. We may usually not add a strict restriction, but if the code seems like its obviously AI, we will be closing the Pull Request.

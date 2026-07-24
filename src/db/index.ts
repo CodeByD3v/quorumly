@@ -6,15 +6,33 @@ import { Pool } from 'pg';
 
 import * as schema from './schema';
 
-const DEFAULT_DEV_DATABASE_URL = 'postgres://postgres:postgres@localhost:5432/quorumly';
+const DEFAULT_DEV_DATABASE_URL = 'postgresql://postgres:postgres@localhost:5432/quorumly';
 const databaseUrl = process.env.DATABASE_URL ?? DEFAULT_DEV_DATABASE_URL;
-const isDevelopment = process.env.NODE_ENV === 'development';
+
+// Use local postgres if DATABASE_URL points to localhost, otherwise use Neon
+const isLocalDatabase = databaseUrl.includes('localhost') || databaseUrl.includes('127.0.0.1');
+
+console.log('[DB] Database URL:', databaseUrl.replace(/:[^:@]+@/, ':***@'));
+console.log('[DB] Using local database:', isLocalDatabase);
 
 type AppSchema = typeof schema;
 type AppDatabase = PgDatabase<PgQueryResultHKT, AppSchema>;
 
-const db: AppDatabase = isDevelopment
-	? (drizzleNode({ client: new Pool({ connectionString: databaseUrl }) }) as unknown as AppDatabase)
-	: (drizzleNeon({ client: neon(databaseUrl) }) as unknown as AppDatabase);
+let db: AppDatabase;
+
+if (isLocalDatabase) {
+	const pool = new Pool({
+		connectionString: databaseUrl,
+		// Explicit config as fallback
+		host: 'localhost',
+		port: 5432,
+		user: 'postgres',
+		password: 'postgres',
+		database: 'quorumly',
+	});
+	db = drizzleNode({ client: pool, schema }) as unknown as AppDatabase;
+} else {
+	db = drizzleNeon({ client: neon(databaseUrl), schema }) as unknown as AppDatabase;
+}
 
 export default db;
