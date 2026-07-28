@@ -1,5 +1,5 @@
-import { neon } from '@neondatabase/serverless';
-import { drizzle as drizzleNeon } from 'drizzle-orm/neon-http';
+import { Pool as NeonPool } from '@neondatabase/serverless';
+import { drizzle as drizzleNeon } from 'drizzle-orm/neon-serverless';
 import { drizzle as drizzleNode } from 'drizzle-orm/node-postgres';
 import type { PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core';
 import { Pool } from 'pg';
@@ -14,7 +14,7 @@ type AppSchema = typeof schema;
 type AppDatabase = PgDatabase<PgQueryResultHKT, AppSchema>;
 
 const db: AppDatabase = isDevelopment
-	? (drizzleNode({ client: new Pool({ connectionString: databaseUrl }) }) as unknown as AppDatabase)
-	: (drizzleNeon({ client: neon(databaseUrl) }) as unknown as AppDatabase);
+	? (drizzleNode({ client: new Pool({ connectionString: databaseUrl }), schema }) as unknown as AppDatabase)
+	: (drizzleNeon({ client: new NeonPool({ connectionString: databaseUrl }), schema }) as unknown as AppDatabase);
 
 export default db;

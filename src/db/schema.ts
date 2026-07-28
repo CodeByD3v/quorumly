@@ -8,6 +8,7 @@ import {
   unique,
   uuid,
 } from "drizzle-orm/pg-core"
+import { relations } from "drizzle-orm"
 
 export const meetings = pgTable("meetings", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -66,3 +67,22 @@ export type MeetingDate = typeof meetingDates.$inferSelect
 export type NewMeetingDate = typeof meetingDates.$inferInsert
 export type Response = typeof responses.$inferSelect
 export type NewResponse = typeof responses.$inferInsert
+
+export const meetingsRelations = relations(meetings, ({ many }) => ({
+  dates: many(meetingDates),
+  responses: many(responses),
+}))
+
+export const meetingDatesRelations = relations(meetingDates, ({ one }) => ({
+  meeting: one(meetings, {
+    fields: [meetingDates.meetingId],
+    references: [meetings.id],
+  }),
+}))
+
+export const responsesRelations = relations(responses, ({ one }) => ({
+  meeting: one(meetings, {
+    fields: [responses.meetingId],
+    references: [meetings.id],
+  }),
+}))
