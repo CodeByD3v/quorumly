@@ -63,24 +63,28 @@ export async function createMeeting(
   try {
     const slug = generateSlug()
 
-    const [meeting] = await db
-      .insert(meetings)
-      .values({
-        slug,
-        eventName,
-        description: description.trim() || null,
-        timezone,
-        showFromHour: parseHour(fromTime, 0),
-        showToHour: parseHour(toTime, 23),
-      })
-      .returning({ id: meetings.id, slug: meetings.slug })
+    const [meeting] = await db.transaction(async (tx) => {
+      const [newMeeting] = await tx
+        .insert(meetings)
+        .values({
+          slug,
+          eventName,
+          description: description.trim() || null,
+          timezone,
+          showFromHour: parseHour(fromTime, 0),
+          showToHour: parseHour(toTime, 23),
+        })
+        .returning({ id: meetings.id, slug: meetings.slug })
 
-    await db.insert(meetingDates).values(
-      availableDates.map((date) => ({
-        meetingId: meeting.id,
-        date,
-      }))
-    )
+      await tx.insert(meetingDates).values(
+        availableDates.map((date) => ({
+          meetingId: newMeeting.id,
+          date,
+        }))
+      )
+      
+      return [newMeeting]
+    })
 
     if (inviteEmails.length > 0) {
       const createdInvitees = await db
@@ -121,4 +125,23 @@ export async function createMeeting(
       error: "Failed to create event. Please try again.",
     }
   }
+
 }
+}
+
+export async function getMeetingBySlug(slug: string) {
+  const meetingWithDates = await db.query.meetings.findFirst({
+    where: eq(meetings.slug, slug),
+    with: {
+      dates: true,
+    },
+  })
+
+  if (!meetingWithDates) {
+    return null
+  }
+
+  const { dates, ...meeting } = meetingWithDates
+  return { meeting, dates }
+}
+
