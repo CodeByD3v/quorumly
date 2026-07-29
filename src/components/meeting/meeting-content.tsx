@@ -87,22 +87,13 @@ export function MeetingContent({
     setSaveMsg(null)
 
     try {
-      const endpoint = invite
-        ? `/api/meetings/${meeting.id}/responses/invitee`
-        : `/api/meetings/${meeting.id}/responses`
+      const body = {
+        name: name.trim(),
+        timeSlots: Array.from(selectedSlots),
+        ...(invite && { token: invite.token }),
+      }
 
-      const body = invite
-        ? {
-            token: invite.token,
-            name: name.trim(),
-            timeSlots: Array.from(selectedSlots),
-          }
-        : {
-            name: name.trim(),
-            timeSlots: Array.from(selectedSlots),
-          }
-
-      const response = await fetch(endpoint, {
+      const response = await fetch(`/api/meetings/${meeting.id}/responses`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),

@@ -1,12 +1,19 @@
 import { NextRequest, NextResponse } from "next/server"
+import { and, eq } from "drizzle-orm"
 
 import db from "@/db"
-import { meetingDates, meetings, responses } from "@/db/schema"
-import { eq } from "drizzle-orm"
+import {
+  invitees,
+  meetingDates,
+  meetings,
+  responses,
+  user,
+} from "@/db/schema"
 
 type SaveResponseBody = {
   name: string
   timeSlots: string[]
+  token?: string
 }
 
 function isValidTimeSlotsInput(timeSlots: unknown): timeSlots is string[] {
@@ -49,6 +56,17 @@ async function getValidTimeSlots(meetingId: string, timeSlots: string[]) {
   return timeSlots.filter((s) => validKeys.has(s))
 }
 
+/**
+ * Save a response for a meeting. If a token is provided, this handles invitee
+ * responses with the following additional features:
+ *  - re-verifies the token server-side (never trusts the client's claimed email)
+ *  - finds-or-creates a `user` row for the invitee's email so an "account"
+ *    exists for them going forward (issue #3) — no session/sign-in is
+ *    created, this is purely a backend record
+ *  - links the response to that user via the hidden `userId` column, while
+ *    still storing the display `name` the same way anonymous responses do
+ *  - marks the invitee row as responded
+ */
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ meetingId: string }> }
@@ -88,6 +106,67 @@ export async function POST(
       )
     }
 
+    // Handle invitee response with token
+    if (body.token) {
+      const [invitee] = await db
+        .select({ id: invitees.id, email: invitees.email })
+        .from(invitees)
+        .where(
+          and(eq(invitees.meetingId, meetingId), eq(invitees.token, body.token))
+        )
+        .limit(1)
+
+      if (!invitee) {
+        return NextResponse.json(
+          { success: false, error: "Invalid or expired invite link." },
+          { status: 404 }
+        )
+      }
+
+      await db.transaction(async (tx) => {
+        const [existingUser] = await tx
+          .select({ id: user.id })
+          .from(user)
+          .where(eq(user.email, invitee.email))
+          .limit(1)
+
+        const userId =
+          existingUser?.id ??
+          (
+            await tx
+              .insert(user)
+              .values({
+                id: crypto.randomUUID(),
+                name: trimmed,
+                email: invitee.email,
+                emailVerified: false,
+              })
+              .returning({ id: user.id })
+          )[0].id
+
+        await tx
+          .insert(responses)
+          .values({
+            meetingId,
+            name: trimmed,
+            timeSlots: valid,
+            userId,
+          })
+          .onConflictDoUpdate({
+            target: [responses.meetingId, responses.name],
+            set: { timeSlots: valid, userId },
+          })
+
+        await tx
+          .update(invitees)
+          .set({ status: "responded", respondedAt: new Date() })
+          .where(eq(invitees.id, invitee.id))
+      })
+
+      return NextResponse.json({ success: true })
+    }
+
+    // Handle anonymous response without token
     await db
       .insert(responses)
       .values({
