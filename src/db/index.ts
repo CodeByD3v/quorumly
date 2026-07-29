@@ -12,8 +12,10 @@ const databaseUrl = process.env.DATABASE_URL ?? DEFAULT_DEV_DATABASE_URL;
 // Use local postgres if DATABASE_URL points to localhost, otherwise use Neon
 const isLocalDatabase = databaseUrl.includes('localhost') || databaseUrl.includes('127.0.0.1');
 
-console.log('[DB] Database URL:', databaseUrl.replace(/:[^:@]+@/, ':***@'));
-console.log('[DB] Using local database:', isLocalDatabase);
+if (process.env.NODE_ENV === 'development') {
+	console.log('[DB] Database URL:', databaseUrl.replace(/:[^:@]+@/, ':***@'));
+	console.log('[DB] Using local database:', isLocalDatabase);
+}
 
 type AppSchema = typeof schema;
 type AppDatabase = PgDatabase<PgQueryResultHKT, AppSchema>;
