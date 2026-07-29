@@ -1,13 +1,20 @@
-"use server"
-
+import { NextRequest, NextResponse } from "next/server"
 import { and, eq } from "drizzle-orm"
 
 import db from "@/db"
-import { invitees, meetingDates, meetings, responses, user } from "@/db/schema"
+import {
+  invitees,
+  meetingDates,
+  meetings,
+  responses,
+  user,
+} from "@/db/schema"
 
-export type SaveResponseResult =
-  | { success: true }
-  | { success: false; error: string }
+type SaveInviteeResponseBody = {
+  token: string
+  name: string
+  timeSlots: string[]
+}
 
 function isValidTimeSlotsInput(timeSlots: unknown): timeSlots is string[] {
   return (
@@ -49,53 +56,9 @@ async function getValidTimeSlots(meetingId: string, timeSlots: string[]) {
   return timeSlots.filter((s) => validKeys.has(s))
 }
 
-export async function saveResponse(
-  meetingId: string,
-  name: string,
-  timeSlots: string[]
-): Promise<SaveResponseResult> {
-  const trimmed = name.trim()
-
-  if (!trimmed) {
-    return { success: false, error: "Name is required." }
-  }
-
-  if (!isValidTimeSlotsInput(timeSlots)) {
-    return { success: false, error: "At least one valid time slot is required." }
-  }
-
-  try {
-    const valid = await getValidTimeSlots(meetingId, timeSlots)
-
-    if (valid === null) {
-      return { success: false, error: "Meeting not found." }
-    }
-    if (valid.length === 0) {
-      return { success: false, error: "No valid time slots provided." }
-    }
-
-    await db
-      .insert(responses)
-      .values({
-        meetingId,
-        name: trimmed,
-        timeSlots: valid,
-      })
-      .onConflictDoUpdate({
-        target: [responses.meetingId, responses.name],
-        set: { timeSlots: valid },
-      })
-
-    return { success: true }
-  } catch (error) {
-    console.error("Failed to save response:", error)
-    return { success: false, error: "Failed to save. Please try again." }
-  }
-}
-
 /**
  * Saves a response that came from a personal, emailed invite link
- * (`/m/[slug]?token=...`). Unlike `saveResponse`, this:
+ * (`/m/[slug]?token=...`). Unlike the regular response endpoint, this:
  *  - re-verifies the token server-side (never trusts the client's claimed
  *    email)
  *  - finds-or-creates a `user` row for the invitee's email so an "account"
@@ -105,41 +68,62 @@ export async function saveResponse(
  *    still storing the display `name` the same way anonymous responses do
  *  - marks the invitee row as responded
  */
-export async function saveInviteeResponse(
-  meetingId: string,
-  token: string,
-  name: string,
-  timeSlots: string[]
-): Promise<SaveResponseResult> {
-  const trimmed = name.trim()
-
-  if (!trimmed) {
-    return { success: false, error: "Name is required." }
-  }
-  if (!token) {
-    return { success: false, error: "Invalid or expired invite link." }
-  }
-  if (!isValidTimeSlotsInput(timeSlots)) {
-    return { success: false, error: "At least one valid time slot is required." }
-  }
-
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ meetingId: string }> }
+) {
   try {
+    const { meetingId } = await params
+    const body = (await request.json()) as SaveInviteeResponseBody
+
+    const trimmed = body.name.trim()
+
+    if (!trimmed) {
+      return NextResponse.json(
+        { success: false, error: "Name is required." },
+        { status: 400 }
+      )
+    }
+    if (!body.token) {
+      return NextResponse.json(
+        { success: false, error: "Invalid or expired invite link." },
+        { status: 400 }
+      )
+    }
+    if (!isValidTimeSlotsInput(body.timeSlots)) {
+      return NextResponse.json(
+        { success: false, error: "At least one valid time slot is required." },
+        { status: 400 }
+      )
+    }
+
     const [invitee] = await db
       .select({ id: invitees.id, email: invitees.email })
       .from(invitees)
-      .where(and(eq(invitees.meetingId, meetingId), eq(invitees.token, token)))
+      .where(
+        and(eq(invitees.meetingId, meetingId), eq(invitees.token, body.token))
+      )
       .limit(1)
 
     if (!invitee) {
-      return { success: false, error: "Invalid or expired invite link." }
+      return NextResponse.json(
+        { success: false, error: "Invalid or expired invite link." },
+        { status: 404 }
+      )
     }
 
-    const valid = await getValidTimeSlots(meetingId, timeSlots)
+    const valid = await getValidTimeSlots(meetingId, body.timeSlots)
     if (valid === null) {
-      return { success: false, error: "Meeting not found." }
+      return NextResponse.json(
+        { success: false, error: "Meeting not found." },
+        { status: 404 }
+      )
     }
     if (valid.length === 0) {
-      return { success: false, error: "No valid time slots provided." }
+      return NextResponse.json(
+        { success: false, error: "No valid time slots provided." },
+        { status: 400 }
+      )
     }
 
     await db.transaction(async (tx) => {
@@ -182,19 +166,12 @@ export async function saveInviteeResponse(
         .where(eq(invitees.id, invitee.id))
     })
 
-    return { success: true }
+    return NextResponse.json({ success: true })
   } catch (error) {
     console.error("Failed to save invitee response:", error)
-    return { success: false, error: "Failed to save. Please try again." }
+    return NextResponse.json(
+      { success: false, error: "Failed to save. Please try again." },
+      { status: 500 }
+    )
   }
-}
-
-export async function getResponses(meetingId: string) {
-  const rows = await db
-    .select()
-    .from(responses)
-    .where(eq(responses.meetingId, meetingId))
-    .orderBy(responses.createdAt)
-
-  return rows
 }

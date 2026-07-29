@@ -2,7 +2,6 @@
 
 import { useCallback, useMemo, useState } from "react"
 
-import { saveInviteeResponse, saveResponse } from "@/actions/responses"
 import {
   AvailabilityGrid,
   type SelectedSlots,
@@ -88,18 +87,28 @@ export function MeetingContent({
     setSaveMsg(null)
 
     try {
-      const result = invite
-        ? await saveInviteeResponse(
-            meeting.id,
-            invite.token,
-            name.trim(),
-            Array.from(selectedSlots)
-          )
-        : await saveResponse(
-            meeting.id,
-            name.trim(),
-            Array.from(selectedSlots)
-          )
+      const endpoint = invite
+        ? `/api/meetings/${meeting.id}/responses/invitee`
+        : `/api/meetings/${meeting.id}/responses`
+
+      const body = invite
+        ? {
+            token: invite.token,
+            name: name.trim(),
+            timeSlots: Array.from(selectedSlots),
+          }
+        : {
+            name: name.trim(),
+            timeSlots: Array.from(selectedSlots),
+          }
+
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      })
+
+      const result = await response.json()
 
       if (result.success) {
         setSaveMsg("success")

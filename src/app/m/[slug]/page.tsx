@@ -1,8 +1,8 @@
 import { notFound } from "next/navigation"
 
-import { getMeetingBySlug } from "@/actions/create-meeting"
-import { getResponses } from "@/actions/responses"
 import { getInviteeByToken } from "@/lib/queries/invitees"
+import { getMeetingBySlug } from "@/lib/queries/meetings"
+import { getResponses } from "@/lib/queries/responses"
 import { MeetingContent } from "@/components/meeting/meeting-content"
 
 export default async function MeetingPage({
