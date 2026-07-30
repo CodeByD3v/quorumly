@@ -1,7 +1,6 @@
 "use server"
 
 import { eq } from "drizzle-orm"
-import { unstable_after as after } from "next/server"
 
 import db from "@/db"
 import { invitees, meetingDates, meetings } from "@/db/schema"
@@ -102,19 +101,18 @@ export async function createMeeting(
       const appUrl = getAppUrl()
 
       // Send invite emails in the background without blocking the response.
-      // Using unstable_after to send emails after the response is returned.
-      after(
-        Promise.allSettled(
-          createdInvitees.map((invitee) =>
-            sendInviteEmail({
-              to: invitee.email,
-              eventName,
-              inviteUrl: `${appUrl}/m/${meeting.slug}?token=${invitee.token}`,
-              hostNote: description.trim() || null,
-            })
-          )
+      Promise.allSettled(
+        createdInvitees.map((invitee) =>
+          sendInviteEmail({
+            to: invitee.email,
+            eventName,
+            inviteUrl: `${appUrl}/m/${meeting.slug}?token=${invitee.token}`,
+            hostNote: description.trim() || null,
+          })
         )
-      )
+      ).catch((error) => {
+        console.error("Failed to send invite emails:", error)
+      })
     }
 
     return { success: true, slug: meeting.slug }

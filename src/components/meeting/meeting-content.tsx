@@ -138,11 +138,18 @@ export function MeetingContent({
     <main className="w-full min-h-dvh flex items-center justify-center py-6 px-4">
       <div className="w-full max-w-5xl">
       <div className="rounded-2xl border border-slate-200 bg-white p-5 font-mono -mt-2">
-        <div className="flex items-center justify-between mb-4">
-          <h1 className="text-lg font-semibold text-slate-800">
-            {meeting.eventName}
-          </h1>
-          <div className="min-w-[280px] h-[52px] flex items-end justify-end">
+        <div className="flex items-start justify-between mb-4 gap-4">
+          <div className="flex-1">
+            <h1 className="text-lg font-semibold text-slate-800">
+              {meeting.eventName}
+            </h1>
+            {meeting.description && (
+              <p className="text-xs text-slate-500 mt-1">
+                {meeting.description}
+              </p>
+            )}
+          </div>
+          <div className="flex-shrink-0">
             {!isAdding ? (
               <Button onClick={handleStartAdding} className="h-9">
                 + Add Availability
